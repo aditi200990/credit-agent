@@ -12,11 +12,6 @@ The point isn't to automate the credit decision away. It's to do the first 80% o
 
 ---
 
-## Walkthrough
-
-- **Interactive explainer:** [`docs/index.html`](docs/index.html). Pick a loan file and step through all eight nodes, with the real code and output at each step. Turn on GitHub Pages (Settings → Pages → deploy from `main` / `docs`) to get a live link.
-- **2-minute video:** [`docs/creditagent-walkthrough.mp4`](docs/creditagent-walkthrough.mp4), with captions in [`.srt`](docs/creditagent-walkthrough.srt) and a [narration script](docs/narration-script.md).
-
 ## Why this exists
 
 In retail lending, most of an underwriter's time goes on reconciliation rather than judgement: does the payslip match the bank credits? Does the bureau show every loan the customer is paying? Is the declared income real? Generic "chat with your PDF" tools don't help much, because they summarise documents one at a time.
