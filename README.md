@@ -2,7 +2,7 @@
 
 **An agentic credit underwriting pipeline built on LangGraph.** It reads a retail loan file (application, payslip or ITR, bank statement, bureau report), cross-checks the documents against each other, applies credit policy, grades the risk and writes a credit memo with a clear recommendation.
 
-The point isn't to automate the credit decision away. It's to do the first 80% of an analyst's work in seconds, and make every number in the output traceable to a source document.
+The point isn't to automate the credit decision away. It's to do the first 80% of an underwriter's work in seconds, and make every number in the output traceable to a source document.
 
 [![tests](https://github.com/aditi200990/credit-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/aditi200990/credit-agent/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
