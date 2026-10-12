@@ -1,0 +1,156 @@
+"""Credit memo generation, with a grounding guard on any LLM-written text."""
+from __future__ import annotations
+
+import json
+import re
+
+from . import llm
+from .fmt import inr
+
+DECISION_BADGE = {"APPROVE": "✅ APPROVE", "REFER": "⚠️ REFER TO CREDIT COMMITTEE",
+                  "DECLINE": "❌ DECLINE", "INCOMPLETE": "📄 INCOMPLETE – DOCUMENTS MISSING"}
+
+SYSTEM_PROMPT = (
+    "You are a senior credit analyst at an Indian bank. Write a concise analyst commentary "
+    "(120-180 words, plain prose, no headings) for a credit memo. Use ONLY the facts provided. "
+    "Do not introduce any number that is not in the facts. Do not change the decision."
+)
+
+_NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _raw_numbers(text: str) -> list[float]:
+    out = []
+    for raw in _NUM.findall(text):
+        try:
+            out.append(float(raw.replace(",", "")))
+        except ValueError:
+            pass
+    return out
+
+
+def _numbers(text: str) -> set[float]:
+    return {round(v, 1) for v in _raw_numbers(text)}
+
+
+def allowed_numbers(facts: dict) -> set[float]:
+    """Every number that appears in the facts, plus ratios expressed as percentages."""
+    raw = _raw_numbers(json.dumps(facts, ensure_ascii=False))
+    allowed = {round(v, 1) for v in raw}
+    for v in raw:
+        if 0 < v < 1.5:  # ratios such as FOIR 0.276 may be written as 27.6% or 28%
+            allowed |= {round(v * 100, 1), float(round(v * 100))}
+    return allowed
+
+
+def ungrounded_numbers(text: str, facts: dict) -> set[float]:
+    """Numbers in the text that can't be traced to the facts (the hallucination check)."""
+    allowed = allowed_numbers(facts)
+    return {n for n in _numbers(text) if n not in allowed and n > 10}  # ignore small counts
+
+
+def _facts(state: dict) -> dict:
+    app = state["extracted"]["application"]
+    return {
+        "applicant": app["applicant"]["name"],
+        "employment_type": app["applicant"]["employment_type"],
+        "loan": app["loan"],
+        "metrics": state["metrics"],
+        "risk_grade": state["risk_grade"],
+        "risk_points": state["risk_points"],
+        "risk_points_max": 100,
+        "decision": state["decision"],
+        "decision_reasons": state["decision_reasons"],
+        "policy_failures": [r for r in state["policy_results"] if not r["passed"]],
+        "discrepancies": state["discrepancies"],
+    }
+
+
+def _template_commentary(state: dict) -> str:
+    m = state["metrics"]
+    app = state["extracted"]["application"]
+    name = app["applicant"]["name"]
+    parts = [
+        f"{name} ({app['applicant']['employment_type'].replace('_', '-')}) has requested "
+        f"{inr(app['loan']['amount'])} over {app['loan']['tenure_months']} months. "
+        f"Underwriting uses the lowest verified income of {inr(m['assessed_monthly_income'])}/month, "
+        f"giving a FOIR of {m['foir']:.1%} including the proposed EMI of {inr(m['proposed_emi'])}."
+    ]
+    if state["discrepancies"]:
+        parts.append(f"{len(state['discrepancies'])} discrepancy(ies) were found across the documents; "
+                     "these must be resolved before the file can be relied on.")
+    else:
+        parts.append("Identity, employer and income are consistent across the application, income proof, "
+                     "bank statement and bureau report.")
+    fails = [r["rule"] for r in state["policy_results"] if not r["passed"]]
+    parts.append(f"Policy exceptions: {', '.join(fails)}." if fails else "All policy rules are met.")
+    parts.append(f"Risk grade {state['risk_grade']} ({state['risk_points']}/100).")
+    return " ".join(parts)
+
+
+def build_memo(state: dict) -> tuple[str, str]:
+    """Return (memo_markdown, source) where source is template | llm | llm_rejected."""
+    app = state["extracted"]["application"]
+    applicant, loan, m = app["applicant"], app["loan"], state["metrics"]
+
+    source, commentary = "template", _template_commentary(state)
+    if llm.is_configured():
+        facts = _facts(state)
+        try:
+            draft = llm.chat(SYSTEM_PROMPT, json.dumps(facts, indent=2, ensure_ascii=False))
+            bad = ungrounded_numbers(draft, facts)
+            if bad:
+                source = "llm_rejected"
+                commentary += f"\n\n> LLM commentary discarded: it contained figures not in the source data ({', '.join(f'{b:g}' for b in sorted(bad))})."
+            else:
+                source, commentary = "llm", draft
+        except Exception as exc:  # network or provider error: fall back, never fail the memo
+            source = "llm_rejected"
+            commentary += f"\n\n> LLM unavailable ({type(exc).__name__}); template commentary used."
+
+    src = m["income_sources"]
+    lines = [
+        f"# Credit Memo — {app['application_id']}",
+        "",
+        f"**Recommendation:** {DECISION_BADGE[state['decision']]}  ",
+        f"**Risk grade:** {state['risk_grade']} ({state['risk_points']}/100)",
+        "",
+        "> Synthetic data. Generated by CreditAgent for demonstration only.",
+        "",
+        "## Applicant and facility",
+        "| | |", "|---|---|",
+        f"| Applicant | {applicant['name']} |",
+        f"| Employment | {applicant['employment_type'].replace('_', '-')} — {applicant['employer']} |",
+        f"| Product | {loan['product'].replace('_', ' ').title()} |",
+        f"| Amount / tenure | {inr(loan['amount'])} / {loan['tenure_months']} months @ {loan['annual_rate_pct']}% |",
+        f"| Purpose | {loan['purpose']} |",
+        "",
+        "## Financial analysis",
+        "| Metric | Value |", "|---|---|",
+        f"| Declared income | {inr(src['declared'])} |",
+        f"| Income per proof document | {inr(src['income_proof'])} |" if src["income_proof"] else "| Income per proof document | — |",
+        f"| Income per bank credits | {inr(src['bank'])} |" if src["bank"] else "| Income per bank credits | — |",
+        f"| **Assessed income (lowest verified)** | **{inr(m['assessed_monthly_income'])}** |",
+        f"| Existing EMIs | {inr(m['existing_emi'])} |",
+        f"| Proposed EMI | {inr(m['proposed_emi'])} |",
+        f"| **FOIR** | **{m['foir']:.1%}** |",
+        f"| Loan / annual income | {m['loan_to_annual_income']}x |",
+        f"| Avg month-end balance | {inr(m['avg_month_end_balance'])} |",
+        f"| Bureau score / max DPD / enquiries (6m) | {m['score']} / {m['max_dpd_12m']} / {m['enquiries_6m']} |",
+        "",
+        "## Policy checks",
+        "| Rule | Type | Actual | Threshold | Result |", "|---|---|---|---|---|",
+    ]
+    for r in state["policy_results"]:
+        lines.append(f"| {r['rule']} | {'Hard' if r['hard'] else 'Soft'} | {r['actual']} | {r['threshold']} | {'✅' if r['passed'] else '❌'} |")
+
+    lines += ["", "## Discrepancies"]
+    if state["discrepancies"]:
+        lines += ["| Severity | Check | Detail |", "|---|---|---|"]
+        lines += [f"| {d['severity'].upper()} | `{d['code']}` | {d['detail']} |" for d in state["discrepancies"]]
+    else:
+        lines.append("None found.")
+
+    lines += ["", "## Reasons for recommendation"] + [f"- {r}" for r in state["decision_reasons"]]
+    lines += ["", "## Analyst commentary", commentary, ""]
+    return "\n".join(lines), source

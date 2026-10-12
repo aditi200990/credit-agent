@@ -1,0 +1,12 @@
+INCOME TAX RETURN - ACKNOWLEDGEMENT SUMMARY
+(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)
+
+Assessee Name      : Sunil Kadam
+PAN                : CDESK9012M
+Assessment Year    : 2026-27
+Business Name      : Kadam Hardware Traders
+Nature of Business : Retail trade - hardware
+
+Gross Turnover     : 64,20,000
+Gross Total Income : 9,84,000
+Total Tax Paid     : 1,02,400

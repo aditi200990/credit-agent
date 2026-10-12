@@ -1,0 +1,59 @@
+1
+00:00:00,000 --> 00:00:04,700
+A LangGraph agent that underwrites a retail loan file and writes the credit memo.
+
+2
+00:00:04,700 --> 00:00:13,099
+Income, employer and existing loans have to agree across four documents. That's where the risk hides.
+
+3
+00:00:13,100 --> 00:00:21,500
+Each node is a plain Python function. It reads shared state and returns only the keys it changes.
+
+4
+00:00:21,500 --> 00:00:28,900
+STEP 1/8 · ingest loads the file and checks the right income proof exists. A missing document ends the graph early.
+
+5
+00:00:28,900 --> 00:00:37,300
+STEP 2/8 · extract turns payslip, bank statement and bureau text into structured fields.
+
+6
+00:00:37,299 --> 00:00:47,700
+STEP 3/8 · detect_discrepancies cross-checks sources. Rahul's salary comes from a different employer, and one loan is hidden.
+
+7
+00:00:47,699 --> 00:00:58,100
+STEP 4/8 · analyze uses the lowest verified income: FOIR is 59.6%, not the 24.5% the declared numbers suggest.
+
+8
+00:00:58,099 --> 00:01:06,500
+STEP 5/8 · policy_check runs 8 rules. Hard rules can decline; soft rules send the file for review.
+
+9
+00:01:06,500 --> 00:01:13,900
+STEP 6/8 · risk_grade is a transparent points model, so every deduction can be explained to a credit committee.
+
+10
+00:01:13,900 --> 00:01:22,300
+STEP 7/8 · decide: when documents disagree, the file goes to a human before any policy outcome. Result: REFER.
+
+11
+00:01:22,300 --> 00:01:30,700
+STEP 8/8 · write_memo builds the credit memo: facility, analysis, policy table, flags and reasons.
+
+12
+00:01:30,700 --> 00:01:40,100
+Three synthetic files, three different decisions from the same pipeline.
+
+13
+00:01:40,100 --> 00:01:49,500
+Any LLM-written commentary is checked number by number against the source facts before it reaches the memo.
+
+14
+00:01:49,500 --> 00:01:56,900
+An eval harness checks decisions, red-flag precision and recall, and memo grounding on every push.
+
+15
+00:01:56,900 --> 00:02:03,600
+No API key needed. Clone it, run it, and read the memos it writes.

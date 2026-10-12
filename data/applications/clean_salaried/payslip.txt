@@ -1,0 +1,20 @@
+NORTHWIND TECHNOLOGIES PVT LTD
+Payslip for the month of August 2026
+(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)
+
+Employee Name : Priya Menon
+Employee ID   : NW-20931
+PAN           : ABCPM1234K
+Designation   : Senior Product Analyst
+
+Basic Salary        : 76,000
+HRA                 : 38,000
+Special Allowance   : 38,000
+Gross Earnings      : 1,52,000
+
+Provident Fund      : 9,120
+Professional Tax    : 200
+Income Tax (TDS)    : 22,680
+Total Deductions    : 32,000
+
+Net Pay             : 1,20,000

@@ -1,0 +1,14 @@
+{
+  "clean_salaried": {
+    "decision": "APPROVE",
+    "discrepancies": []
+  },
+  "income_mismatch": {
+    "decision": "REFER",
+    "discrepancies": ["EMPLOYER_MISMATCH_BANK", "INCOME_MISMATCH_BANK", "UNDISCLOSED_OBLIGATION"]
+  },
+  "high_risk_self_employed": {
+    "decision": "DECLINE",
+    "discrepancies": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "application_id": "APP-1002",
+  "synthetic": true,
+  "applicant": {
+    "name": "Rahul Verma",
+    "pan": "BCDRV5678L",
+    "dob": "1987-11-02",
+    "employment_type": "salaried",
+    "employer": "Bluepeak Consulting LLP"
+  },
+  "declared_monthly_income": 150000,
+  "loan": {
+    "product": "personal_loan",
+    "amount": 1200000,
+    "tenure_months": 60,
+    "annual_rate_pct": 13.0,
+    "purpose": "Debt consolidation"
+  }
+}

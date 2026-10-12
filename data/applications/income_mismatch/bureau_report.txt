@@ -1,0 +1,16 @@
+CONSUMER CREDIT BUREAU REPORT
+(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)
+Report Date: 2026-09-03
+
+Name        : Rahul Verma
+PAN         : BCDRV5678L
+Date of Birth: 1987-11-02
+
+Credit Score                  : 735
+Enquiries (last 6 months)     : 3
+Max DPD (last 12 months)      : 0
+Written-off / Settled accounts: 0
+
+Active Accounts:
+- Two Wheeler Loan | Lender: Lakeview Bank | Sanctioned: 1,40,000 | Outstanding: 62,000 | EMI: 9,500 | DPD: 0
+- Credit Card | Lender: Harbor Bank | Limit: 1,50,000 | Outstanding: 24,100 | EMI: 0 | DPD: 0

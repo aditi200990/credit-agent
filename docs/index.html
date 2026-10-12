@@ -1,0 +1,468 @@
+<title>CreditAgent Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an underwriter's working file. Pipeline rail on top, explanation + case output on the left, real source code on the right. */
+:root {
+  --bg: #eef2f0;
+  --surface: #ffffff;
+  --sunken: #e3e9e6;
+  --ink: #14201c;
+  --muted: #5a6a64;
+  --rule: #d2dbd7;
+  --accent: #1d6a51;
+  --accent-soft: #d5ebe2;
+  --ok: #1f7a4d;   --ok-soft: #dcf1e5;
+  --warn: #9a6400; --warn-soft: #fbeccb;
+  --bad: #b3261e;  --bad-soft: #f9dedb;
+  --code-bg: #f6f8f7;
+  --c-kw: #8a3ffc; --c-str: #1d6a51; --c-num: #b45309; --c-com: #7b8a84; --c-fn: #0b5cad; --c-built: #a21caf;
+  --f-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1412; --surface: #151d1a; --sunken: #1b2522; --ink: #e2eae6; --muted: #92a29b; --rule: #2a3632;
+  --accent: #5cc39a; --accent-soft: #1d3a2f;
+  --ok: #5cc39a; --ok-soft: #173327; --warn: #e8b04a; --warn-soft: #3a2d12; --bad: #f08a80; --bad-soft: #3d1c19;
+  --code-bg: #111816;
+  --c-kw: #c4a2ff; --c-str: #7fd3ad; --c-num: #f2b35f; --c-com: #6f817a; --c-fn: #7ab7ff; --c-built: #f0a0e6;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1412; --surface: #151d1a; --sunken: #1b2522; --ink: #e2eae6; --muted: #92a29b; --rule: #2a3632;
+  --accent: #5cc39a; --accent-soft: #1d3a2f;
+  --ok: #5cc39a; --ok-soft: #173327; --warn: #e8b04a; --warn-soft: #3a2d12; --bad: #f08a80; --bad-soft: #3d1c19;
+  --code-bg: #111816;
+  --c-kw: #c4a2ff; --c-str: #7fd3ad; --c-num: #f2b35f; --c-com: #6f817a; --c-fn: #7ab7ff; --c-built: #f0a0e6;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; display: grid; gap: 22px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 700; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+p { margin: 0; }
+.mono { font-family: var(--f-mono); }
+.num { font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* header */
+.top { display: grid; gap: 14px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; color: var(--accent); letter-spacing: 0.04em; }
+.lede { color: var(--muted); max-width: 68ch; }
+
+/* case picker */
+.cases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.case { text-align: left; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 4px; transition: border-color .15s, background .15s; }
+.case:hover { border-color: var(--accent); }
+.case[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.case .cid { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.case .cname { font-weight: 600; }
+.case .cdesc { font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) { .cases { grid-template-columns: 1fr; } }
+
+/* pipeline rail */
+.rail-scroll { overflow-x: auto; }
+.rail-box { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px; }
+.rail { display: flex; align-items: center; gap: 0; min-width: max-content; list-style: none; margin: 0; padding: 0; }
+.rail li { display: flex; align-items: center; }
+.rail li + li::before { content: ""; width: 18px; height: 2px; background: var(--rule); margin-inline: 2px; }
+.rail li.done + li::before, .rail li.done.active::before { background: var(--accent); }
+.node { border: 1px solid var(--rule); background: var(--bg); border-radius: 999px; padding: 6px 12px; font-family: var(--f-mono); font-size: 12.5px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.node .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rule); }
+.rail li.done .node .dot { background: var(--accent); }
+.rail li.active .node { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.rail li.active .node .dot { background: var(--surface); }
+.rail-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { border: 1px solid var(--rule); background: var(--surface); border-radius: 8px; padding: 8px 14px; font-weight: 500; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.step-count { font-family: var(--f-mono); font-size: 13px; color: var(--muted); margin-left: auto; }
+.progress { height: 3px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+
+/* main grid */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 18px; align-items: start; }
+@media (max-width: 960px) { .stage { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.step-head { display: grid; gap: 6px; }
+.step-head .nodename { font-family: var(--f-mono); font-size: 13px; color: var(--accent); }
+.explain { color: var(--ink); max-width: 64ch; }
+.trace { font-family: var(--f-mono); font-size: 12.5px; background: var(--sunken); border-radius: 6px; padding: 8px 10px; color: var(--muted); overflow-x: auto; white-space: pre; }
+.trace b { color: var(--ink); font-weight: 500; }
+
+.code-panel { background: var(--code-bg); border: 1px solid var(--rule); border-radius: var(--r); min-width: 0; display: grid; }
+.code-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.copy { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 3px 9px; font-size: 12px; }
+pre.code { margin: 0; padding: 14px 16px; overflow-x: auto; font-family: var(--f-mono); font-size: 12.8px; line-height: 1.6; tab-size: 4; }
+.code .ln { display: inline-block; width: 2.4em; color: var(--c-com); user-select: none; opacity: .7; }
+.tk-kw { color: var(--c-kw); } .tk-str { color: var(--c-str); } .tk-num { color: var(--c-num); } .tk-com { color: var(--c-com); font-style: italic; } .tk-fn { color: var(--c-fn); } .tk-bi { color: var(--c-built); }
+.code-why { padding: 12px 16px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--muted); }
+.code-why b { color: var(--ink); font-weight: 600; }
+
+/* output widgets */
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; font-size: 14px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--sunken); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.pill { font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: .05em; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+.pill.high { background: var(--bad-soft); color: var(--bad); }
+.pill.medium { background: var(--warn-soft); color: var(--warn); }
+.pill.low { background: var(--sunken); color: var(--muted); }
+.flag { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--rule); }
+.flag:first-child { border-top: 0; padding-top: 0; }
+.flag code { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.flag p { grid-column: 2; font-size: 14px; }
+.checks { display: grid; gap: 6px; }
+.check { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.mark { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.mark.ok { background: var(--ok-soft); color: var(--ok); }
+.mark.bad { background: var(--bad-soft); color: var(--bad); }
+
+.bars { display: grid; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 92px; gap: 10px; align-items: center; font-size: 13.5px; }
+.bar-track { height: 12px; background: var(--sunken); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--muted); opacity: .55; border-radius: 3px; }
+.bar-row.min .bar-fill { background: var(--accent); opacity: 1; }
+.bar-row.min { font-weight: 600; }
+.bar-val { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) { .bar-row { grid-template-columns: 88px minmax(0, 1fr) 80px; } }
+
+.gauge { display: grid; gap: 6px; }
+.gauge-track { position: relative; height: 16px; background: var(--sunken); border-radius: 4px; }
+.gauge-fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; }
+.gauge-limit { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+.gauge-scale { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); font-family: var(--f-mono); }
+.big { font-family: var(--f-display); font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+
+table.rules { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl { overflow-x: auto; }
+table.rules th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px; border-bottom: 1px solid var(--rule); }
+table.rules td { padding: 8px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+table.rules tr.fail td { background: var(--bad-soft); }
+
+.grade-row { display: flex; gap: 6px; }
+.grade-cell { flex: 1; text-align: center; padding: 10px 0; border-radius: 6px; background: var(--sunken); font-family: var(--f-display); font-weight: 700; font-size: 20px; color: var(--muted); }
+.grade-cell.on { background: var(--accent); color: var(--surface); }
+.grade-cell small { display: block; font-family: var(--f-mono); font-size: 10.5px; font-weight: 400; }
+
+.stamp { justify-self: start; font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: .08em; padding: 8px 18px; border: 3px solid currentColor; border-radius: 6px; transform: rotate(-2deg); }
+.stamp.APPROVE { color: var(--ok); } .stamp.REFER { color: var(--warn); } .stamp.DECLINE { color: var(--bad); }
+@media (prefers-reduced-motion: no-preference) { .stamp { animation: thump .35s ease-out; } @keyframes thump { from { transform: rotate(-2deg) scale(1.25); opacity: 0; } } }
+ul.reasons { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+
+.memo { border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; max-height: 520px; overflow: auto; font-size: 13.5px; display: block; }
+.memo > * + * { margin-top: 10px; }
+.memo h1 { font-size: 20px; } .memo h2 { font-size: 15px; margin-top: 6px; }
+.memo table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.memo td, .memo th { border-bottom: 1px solid var(--rule); padding: 4px 6px; text-align: left; vertical-align: top; }
+.memo blockquote { margin: 0; padding: 6px 10px; border-left: 3px solid var(--rule); color: var(--muted); }
+.memo code { font-family: var(--f-mono); font-size: 11.5px; }
+.memo ul { margin: 0; padding-left: 18px; }
+
+.overview-steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.overview-steps li { display: grid; grid-template-columns: 26px 150px minmax(0, 1fr); gap: 10px; font-size: 14px; align-items: baseline; }
+.overview-steps li::before { counter-increment: s; content: counter(s); font-family: var(--f-mono); font-size: 12px; color: var(--accent); }
+.overview-steps code { font-family: var(--f-mono); font-size: 12.5px; }
+@media (max-width: 520px) { .overview-steps li { grid-template-columns: 22px minmax(0, 1fr); } .overview-steps li span { grid-column: 2; } }
+
+details.raw summary, details.docs summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+details.raw pre { margin: 8px 0 0; font-family: var(--f-mono); font-size: 12px; background: var(--sunken); border-radius: 6px; padding: 10px; overflow: auto; max-height: 300px; }
+
+.docs-box { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); padding: 16px 20px; display: grid; gap: 12px; }
+.doc-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.doc-tab { border: 1px solid var(--rule); background: var(--bg); border-radius: 6px; padding: 4px 10px; font-family: var(--f-mono); font-size: 12px; }
+.doc-tab[aria-selected="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+pre.doc { margin: 0; font-family: var(--f-mono); font-size: 12px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow: auto; max-height: 340px; }
+.foot { font-size: 12.5px; color: var(--muted); }
+kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">LangGraph · credit underwriting · synthetic data</span>
+    <h1>How CreditAgent underwrites a loan</h1>
+    <p class="lede">Pick a loan file, then step through the eight nodes of the graph. Each step shows what the node does, the actual Python behind it, and what it produced for that file.</p>
+  </header>
+
+  <div class="cases" role="group" aria-label="Loan file" id="cases"></div>
+
+  <div class="rail-box">
+    <div class="rail-scroll"><ol class="rail" id="rail"></ol></div>
+    <p class="rail-note">If a required document is missing, <span class="mono">ingest</span> routes to an <span class="mono">incomplete</span> node and the graph ends early.</p>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="prev">← Previous</button>
+    <button class="btn primary" id="next">Next step →</button>
+    <button class="btn" id="play" aria-pressed="false">▶ Play</button>
+    <span class="step-count" id="count"></span>
+  </div>
+  <div class="progress"><i id="bar"></i></div>
+
+  <section class="stage">
+    <div class="panel" id="left"></div>
+    <div class="code-panel">
+      <div class="code-head"><span id="file"></span><button class="copy" id="copy">Copy</button></div>
+      <pre class="code" id="code"></pre>
+      <div class="code-why" id="why"></div>
+    </div>
+  </section>
+
+  <details class="docs docs-box" id="docs">
+    <summary>Source documents in this loan file</summary>
+    <div class="doc-tabs" id="doctabs" role="tablist"></div>
+    <pre class="doc" id="doc"></pre>
+  </details>
+
+  <p class="foot">Use <kbd>←</kbd> <kbd>→</kbd> to move between steps. All applicants, lenders and figures are synthetic. Code is from the CreditAgent repository.</p>
+</div>
+
+<script>
+const DATA = {"code": {"ingest": "def ingest(state: CreditState) -> dict:\n    docs, missing = documents.load_documents(state[\"case_dir\"])\n    return {\"documents\": docs, \"missing_documents\": missing,\n            \"trace\": [f\"ingest: loaded {sorted(docs)}\" + (f\"; missing {missing}\" if missing else \"\")]}\n\n\ndef route_after_ingest(state: CreditState) -> str:\n    return \"incomplete\" if state[\"missing_documents\"] else \"extract\"", "extract": "def extract_payslip(text: str) -> dict:\n    first_line = next(line for line in text.splitlines() if line.strip())\n    return {\n        \"employer\": first_line.strip(),\n        \"name\": _field(text, \"Employee Name\"),\n        \"pan\": _field(text, \"PAN\"),\n        \"gross_monthly\": to_number(_field(text, \"Gross Earnings\")),\n        \"net_monthly\": to_number(_field(text, \"Net Pay\")),\n    }\n\n\nsalary_credits = [r for r in rows if r[\"credit\"] and SALARY_PATTERN.search(r[\"description\"])]\nall_credits = [float(r[\"credit\"]) for r in rows if r[\"credit\"]]\nbounces = [r for r in rows if BOUNCE_PATTERN.search(r[\"description\"])]", "detect_discrepancies": "# 3. Income: declared vs income proof vs bank credits.\ndeclared = app[\"declared_monthly_income\"]\ndoc_income = income_doc.get(\"net_monthly\")\nif doc_income and _gap(declared, doc_income) > INCOME_TOLERANCE:\n    out.append({\"code\": \"INCOME_MISMATCH_DOCUMENT\", \"severity\": \"medium\",\n                \"detail\": f\"Declared income {_fmt(declared)} vs income proof {_fmt(doc_income)} ({_gap(declared, doc_income):.0%} gap).\"})\nbank_income = bank.get(\"avg_salary_credit\") or bank.get(\"avg_monthly_credits\")\nreference = doc_income or declared\nif bank_income and _gap(reference, bank_income) > INCOME_TOLERANCE:\n    out.append({\"code\": \"INCOME_MISMATCH_BANK\", \"severity\": \"high\",\n                \"detail\": f\"Income proof shows {_fmt(reference)}/month but bank credits average {_fmt(bank_income)}/month ({_gap(reference, bank_income):.0%} gap).\"})\n# 4. Obligations: recurring EMIs in the bank statement that the bureau doesn't show.\nbureau_lenders = {t for a in bureau[\"accounts\"] for t in _core_tokens(a.get(\"lender\"))}\nfor payee, amount in bank[\"recurring_emis\"].items():\n    if not _core_tokens(payee) & bureau_lenders:\n        out.append({\"code\": \"UNDISCLOSED_OBLIGATION\", \"severity\": \"high\",\n                    \"detail\": f\"Recurring EMI of {_fmt(amount)} to '{payee}' appears in the bank statement but not in the bureau report.\"})", "analyze": "income_sources = {\n    \"declared\": app[\"declared_monthly_income\"],\n    \"income_proof\": income_doc.get(\"net_monthly\"),\n    \"bank\": bank.get(\"avg_salary_credit\") or bank.get(\"avg_monthly_credits\"),\n}\n# Conservative: underwrite on the lowest verified income.\nassessed_income = min(v for v in income_sources.values() if v)\n# Use whichever source shows more existing debt (catches undisclosed loans).\nexisting_emi = max(bureau[\"total_emi\"], bank[\"total_emi_observed\"])\nproposed_emi = round(emi(loan[\"amount\"], loan[\"annual_rate_pct\"], loan[\"tenure_months\"]))\nreturn {..., \"foir\": round((existing_emi + proposed_emi) / assessed_income, 3)}", "policy_check": "rules = [\n    (\"Bureau score\", m[\"score\"] >= p[\"min_score\"], True, m[\"score\"], f\">= {p['min_score']}\"),\n    (\"Max DPD (12m)\", m[\"max_dpd_12m\"] <= p[\"max_dpd_12m\"], True, m[\"max_dpd_12m\"], f\"<= {p['max_dpd_12m']}\"),\n    (\"Written-off / settled accounts\", m[\"written_off\"] <= p[\"max_written_off\"], True, m[\"written_off\"], f\"<= {p['max_written_off']}\"),\n    (\"FOIR on assessed income\", m[\"foir\"] <= p[\"max_foir\"], True, f\"{m['foir']:.1%}\", f\"<= {p['max_foir']:.0%}\"),\n    (\"Minimum monthly income\", m[\"assessed_monthly_income\"] >= p[\"min_monthly_income\"], True,\n     f\"{inr(m['assessed_monthly_income'])}\", f\">= {inr(p['min_monthly_income'])}\"),\n    (\"Enquiries (6m)\", m[\"enquiries_6m\"] <= p[\"max_enquiries_6m\"], False, m[\"enquiries_6m\"], f\"<= {p['max_enquiries_6m']}\"),\n    (\"Cheque / ACH bounces (3m)\", m[\"bounce_count\"] <= p[\"max_bounces\"], False, m[\"bounce_count\"], f\"<= {p['max_bounces']}\"),\n    (\"Avg balance covers proposed EMI\", m[\"avg_month_end_balance\"] >= m[\"proposed_emi\"], False,\n     f\"{inr(m['avg_month_end_balance'])}\", f\">= {inr(m['proposed_emi'])}\"),\n]", "risk_grade": "points = 100\npoints -= max(0, (750 - m[\"score\"]) // 10) * 3          # 3 pts per 10 score points below 750\npoints -= max(0, round((m[\"foir\"] - 0.35) * 100))       # 1 pt per FOIR point above 35%\npoints -= 20 if m[\"max_dpd_12m\"] > 30 else (8 if m[\"max_dpd_12m\"] > 0 else 0)\npoints -= max(0, m[\"enquiries_6m\"] - 2) * 3\npoints -= m[\"bounce_count\"] * 5\npoints -= sum({\"high\": 10, \"medium\": 5, \"low\": 2}[d[\"severity\"]] for d in discrepancies)\npoints = max(0, points)\ngrade = next(g for g, cutoff in ((\"A\", 85), (\"B\", 70), (\"C\", 55), (\"D\", 40), (\"E\", 0)) if points >= cutoff)", "decide": "def decide(policy: list[PolicyResult], discrepancies: list[Discrepancy]) -> tuple[str, list[str]]:\n    high = [d for d in discrepancies if d[\"severity\"] == \"high\"]\n    hard_fails = [r for r in policy if r[\"hard\"] and not r[\"passed\"]]\n    soft_fails = [r for r in policy if not r[\"hard\"] and not r[\"passed\"]]\n\n    if high:\n        # Data can't be trusted until a human resolves it, so this beats any policy outcome.\n        return \"REFER\", [f\"{len(high)} high-severity discrepancy(ies) need manual verification before a credit decision.\"] + \\\n            [f\"Policy would also fail: {r['rule']} ({r['actual']} vs {r['threshold']}).\" for r in hard_fails]\n    if hard_fails:\n        return \"DECLINE\", [f\"Hard policy breach: {r['rule']} ({r['actual']} vs {r['threshold']}).\" for r in hard_fails]\n    if soft_fails or discrepancies:\n        return \"REFER\", [f\"Soft policy exception: {r['rule']} ({r['actual']} vs {r['threshold']}).\" for r in soft_fails] + \\\n            [f\"Discrepancy to clarify: {d['detail']}\" for d in discrepancies]\n    return \"APPROVE\", [\"All policy rules passed and documents are consistent.\"]\n", "write_memo": "source, commentary = \"template\", _template_commentary(state)\nif llm.is_configured():\n    facts = _facts(state)\n    try:\n        draft = llm.chat(SYSTEM_PROMPT, json.dumps(facts, indent=2, ensure_ascii=False))\n        bad = ungrounded_numbers(draft, facts)\n        if bad:\n            source = \"llm_rejected\"\n            commentary += f\"\\n\\n> LLM commentary discarded: it contained figures not in the source data ({', '.join(f'{b:g}' for b in sorted(bad))}).\"\n        else:\n            source, commentary = \"llm\", draft\n    except Exception as exc:  # network or provider error: fall back, never fail the memo\n        source = \"llm_rejected\"\n        commentary += f\"\\n\\n> LLM unavailable ({type(exc).__name__}); template commentary used.\"", "graph": "g = StateGraph(CreditState)\ng.add_node(\"ingest\", ingest)\ng.add_node(\"incomplete\", incomplete)\ng.add_node(\"extract\", extract_node)\ng.add_node(\"detect_discrepancies\", detect_discrepancies)\ng.add_node(\"analyze\", analyze)\ng.add_node(\"policy_check\", policy_check)\ng.add_node(\"risk_grade\", risk_grade)\ng.add_node(\"decide\", decide)\ng.add_node(\"write_memo\", write_memo)\n\ng.add_edge(START, \"ingest\")\ng.add_conditional_edges(\"ingest\", route_after_ingest, {\"extract\": \"extract\", \"incomplete\": \"incomplete\"})\ng.add_edge(\"incomplete\", END)\nfor a, b in [(\"extract\", \"detect_discrepancies\"), (\"detect_discrepancies\", \"analyze\"),\n             (\"analyze\", \"policy_check\"), (\"policy_check\", \"risk_grade\"),\n             (\"risk_grade\", \"decide\"), (\"decide\", \"write_memo\"), (\"write_memo\", END)]:\n    g.add_edge(a, b)\nreturn g.compile()"}, "cases": {"clean_salaried": [{"node": "ingest", "update": {"documents": {"application": "<json>", "payslip": "<text>", "bank_statement": "<18 rows>", "bureau_report": "<text>"}, "missing_documents": [], "trace": ["ingest: loaded ['application', 'bank_statement', 'bureau_report', 'payslip']"]}}, {"node": "extract", "update": {"extracted": {"application": {"application_id": "APP-1001", "declared_monthly_income": 120000, "loan": {"product": "personal_loan", "amount": 800000, "tenure_months": 48, "annual_rate_pct": 12.0, "purpose": "Home renovation"}, "applicant": {"name": "Priya Menon", "pan": "ABCPM1234K", "dob": "1990-04-14", "employment_type": "salaried", "employer": "Northwind Technologies Pvt Ltd"}}, "bank_statement": {"months_covered": 3, "avg_salary_credit": 120000, "salary_narration": "NEFT SALARY NORTHWIND TECHNOLOGIES", "avg_monthly_credits": 120000, "recurring_emis": {"LAKEVIEW BANK AUTO LOAN": 12000.0}, "total_emi_observed": 12000, "bounce_count": 0, "avg_month_end_balance": 138900}, "bureau_report": {"name": "Priya Menon", "pan": "ABCPM1234K", "score": 782, "enquiries_6m": 1, "max_dpd_12m": 0, "written_off": 0, "accounts": [{"type": "Auto Loan", "lender": "Lakeview Bank", "sanctioned": 600000.0, "outstanding": 210000.0, "emi": 12000.0, "dpd": 0.0}, {"type": "Credit Card", "lender": "Lakeview Bank", "limit": 300000.0, "outstanding": 26800.0, "emi": 0.0, "dpd": 0.0}], "total_emi": 12000.0}, "payslip": {"employer": "NORTHWIND TECHNOLOGIES PVT LTD", "name": "Priya Menon", "pan": "ABCPM1234K", "gross_monthly": 152000.0, "net_monthly": 120000.0}}, "trace": ["extract: structured 4 documents"]}}, {"node": "detect_discrepancies", "update": {"discrepancies": [], "trace": ["discrepancies: 0 found []"]}}, {"node": "analyze", "update": {"metrics": {"income_sources": {"declared": 120000, "income_proof": 120000.0, "bank": 120000}, "assessed_monthly_income": 120000, "existing_emi": 12000.0, "proposed_emi": 21067, "foir": 0.276, "foir_on_declared": 0.276, "loan_to_annual_income": 0.56, "avg_month_end_balance": 138900, "bounce_count": 0, "score": 782, "max_dpd_12m": 0, "enquiries_6m": 1, "written_off": 0}, "trace": ["analyze: assessed income ₹1,20,000, FOIR 27.6%"]}}, {"node": "policy_check", "update": {"policy_results": [{"rule": "Bureau score", "passed": true, "hard": true, "actual": 782, "threshold": ">= 700"}, {"rule": "Max DPD (12m)", "passed": true, "hard": true, "actual": 0, "threshold": "<= 30"}, {"rule": "Written-off / settled accounts", "passed": true, "hard": true, "actual": 0, "threshold": "<= 0"}, {"rule": "FOIR on assessed income", "passed": true, "hard": true, "actual": "27.6%", "threshold": "<= 50%"}, {"rule": "Minimum monthly income", "passed": true, "hard": true, "actual": "₹1,20,000", "threshold": ">= ₹25,000"}, {"rule": "Enquiries (6m)", "passed": true, "hard": false, "actual": 1, "threshold": "<= 4"}, {"rule": "Cheque / ACH bounces (3m)", "passed": true, "hard": false, "actual": 0, "threshold": "<= 1"}, {"rule": "Avg balance covers proposed EMI", "passed": true, "hard": false, "actual": "₹1,38,900", "threshold": ">= ₹21,067"}], "trace": ["policy: 8/8 passed; failed []"]}}, {"node": "risk_grade", "update": {"risk_grade": "A", "risk_points": 100, "trace": ["risk: grade A (100/100)"]}}, {"node": "decide", "update": {"decision": "APPROVE", "decision_reasons": ["All policy rules passed and documents are consistent."], "trace": ["decide: APPROVE"]}}, {"node": "write_memo", "update": {"memo": "# Credit Memo — APP-1001\n\n**Recommendation:** ✅ APPROVE  \n**Risk grade:** A (100/100)\n\n> Synthetic data. Generated by CreditAgent for demonstration only.\n\n## Applicant and facility\n| | |\n|---|---|\n| Applicant | Priya Menon |\n| Employment | salaried — Northwind Technologies Pvt Ltd |\n| Product | Personal Loan |\n| Amount / tenure | ₹8,00,000 / 48 months @ 12.0% |\n| Purpose | Home renovation |\n\n## Financial analysis\n| Metric | Value |\n|---|---|\n| Declared income | ₹1,20,000 |\n| Income per proof document | ₹1,20,000 |\n| Income per bank credits | ₹1,20,000 |\n| **Assessed income (lowest verified)** | **₹1,20,000** |\n| Existing EMIs | ₹12,000 |\n| Proposed EMI | ₹21,067 |\n| **FOIR** | **27.6%** |\n| Loan / annual income | 0.56x |\n| Avg month-end balance | ₹1,38,900 |\n| Bureau score / max DPD / enquiries (6m) | 782 / 0 / 1 |\n\n## Policy checks\n| Rule | Type | Actual | Threshold | Result |\n|---|---|---|---|---|\n| Bureau score | Hard | 782 | >= 700 | ✅ |\n| Max DPD (12m) | Hard | 0 | <= 30 | ✅ |\n| Written-off / settled accounts | Hard | 0 | <= 0 | ✅ |\n| FOIR on assessed income | Hard | 27.6% | <= 50% | ✅ |\n| Minimum monthly income | Hard | ₹1,20,000 | >= ₹25,000 | ✅ |\n| Enquiries (6m) | Soft | 1 | <= 4 | ✅ |\n| Cheque / ACH bounces (3m) | Soft | 0 | <= 1 | ✅ |\n| Avg balance covers proposed EMI | Soft | ₹1,38,900 | >= ₹21,067 | ✅ |\n\n## Discrepancies\nNone found.\n\n## Reasons for recommendation\n- All policy rules passed and documents are consistent.\n\n## Analyst commentary\nPriya Menon (salaried) has requested ₹8,00,000 over 48 months. Underwriting uses the lowest verified income of ₹1,20,000/month, giving a FOIR of 27.6% including the proposed EMI of ₹21,067. Identity, employer and income are consistent across the application, income proof, bank statement and bureau report. All policy rules are met. Risk grade A (100/100).\n", "memo_source": "template", "trace": ["memo: written (template)"]}}], "income_mismatch": [{"node": "ingest", "update": {"documents": {"application": "<json>", "payslip": "<text>", "bank_statement": "<15 rows>", "bureau_report": "<text>"}, "missing_documents": [], "trace": ["ingest: loaded ['application', 'bank_statement', 'bureau_report', 'payslip']"]}}, {"node": "extract", "update": {"extracted": {"application": {"application_id": "APP-1002", "declared_monthly_income": 150000, "loan": {"product": "personal_loan", "amount": 1200000, "tenure_months": 60, "annual_rate_pct": 13.0, "purpose": "Debt consolidation"}, "applicant": {"name": "Rahul Verma", "pan": "BCDRV5678L", "dob": "1987-11-02", "employment_type": "salaried", "employer": "Bluepeak Consulting LLP"}}, "bank_statement": {"months_covered": 3, "avg_salary_credit": 92000, "salary_narration": "NEFT SAL ORION RETAIL PVT LTD", "avg_monthly_credits": 92000, "recurring_emis": {"LAKEVIEW BANK TWO WHEELER": 9500.0, "QUICKCASH FINANCE": 18000.0}, "total_emi_observed": 27500, "bounce_count": 0, "avg_month_end_balance": 21800}, "bureau_report": {"name": "Rahul Verma", "pan": "BCDRV5678L", "score": 735, "enquiries_6m": 3, "max_dpd_12m": 0, "written_off": 0, "accounts": [{"type": "Two Wheeler Loan", "lender": "Lakeview Bank", "sanctioned": 140000.0, "outstanding": 62000.0, "emi": 9500.0, "dpd": 0.0}, {"type": "Credit Card", "lender": "Harbor Bank", "limit": 150000.0, "outstanding": 24100.0, "emi": 0.0, "dpd": 0.0}], "total_emi": 9500.0}, "payslip": {"employer": "BLUEPEAK CONSULTING LLP", "name": "Rahul Verma", "pan": "BCDRV5678L", "gross_monthly": 190000.0, "net_monthly": 150000.0}}, "trace": ["extract: structured 4 documents"]}}, {"node": "detect_discrepancies", "update": {"discrepancies": [{"code": "EMPLOYER_MISMATCH_BANK", "severity": "high", "detail": "Salary is credited by a different entity ('NEFT SAL ORION RETAIL PVT LTD') than the declared employer ('Bluepeak Consulting LLP')."}, {"code": "INCOME_MISMATCH_BANK", "severity": "high", "detail": "Income proof shows ₹1,50,000/month but bank credits average ₹92,000/month (39% gap)."}, {"code": "UNDISCLOSED_OBLIGATION", "severity": "high", "detail": "Recurring EMI of ₹18,000 to 'QUICKCASH FINANCE' appears in the bank statement but not in the bureau report."}], "trace": ["discrepancies: 3 found ['EMPLOYER_MISMATCH_BANK', 'INCOME_MISMATCH_BANK', 'UNDISCLOSED_OBLIGATION']"]}}, {"node": "analyze", "update": {"metrics": {"income_sources": {"declared": 150000, "income_proof": 150000.0, "bank": 92000}, "assessed_monthly_income": 92000, "existing_emi": 27500, "proposed_emi": 27304, "foir": 0.596, "foir_on_declared": 0.245, "loan_to_annual_income": 1.09, "avg_month_end_balance": 21800, "bounce_count": 0, "score": 735, "max_dpd_12m": 0, "enquiries_6m": 3, "written_off": 0}, "trace": ["analyze: assessed income ₹92,000, FOIR 59.6%"]}}, {"node": "policy_check", "update": {"policy_results": [{"rule": "Bureau score", "passed": true, "hard": true, "actual": 735, "threshold": ">= 700"}, {"rule": "Max DPD (12m)", "passed": true, "hard": true, "actual": 0, "threshold": "<= 30"}, {"rule": "Written-off / settled accounts", "passed": true, "hard": true, "actual": 0, "threshold": "<= 0"}, {"rule": "FOIR on assessed income", "passed": false, "hard": true, "actual": "59.6%", "threshold": "<= 50%"}, {"rule": "Minimum monthly income", "passed": true, "hard": true, "actual": "₹92,000", "threshold": ">= ₹25,000"}, {"rule": "Enquiries (6m)", "passed": true, "hard": false, "actual": 3, "threshold": "<= 4"}, {"rule": "Cheque / ACH bounces (3m)", "passed": true, "hard": false, "actual": 0, "threshold": "<= 1"}, {"rule": "Avg balance covers proposed EMI", "passed": false, "hard": false, "actual": "₹21,800", "threshold": ">= ₹27,304"}], "trace": ["policy: 6/8 passed; failed ['FOIR on assessed income', 'Avg balance covers proposed EMI']"]}}, {"node": "risk_grade", "update": {"risk_grade": "E", "risk_points": 39, "trace": ["risk: grade E (39/100)"]}}, {"node": "decide", "update": {"decision": "REFER", "decision_reasons": ["3 high-severity discrepancy(ies) need manual verification before a credit decision.", "Policy would also fail: FOIR on assessed income (59.6% vs <= 50%)."], "trace": ["decide: REFER"]}}, {"node": "write_memo", "update": {"memo": "# Credit Memo — APP-1002\n\n**Recommendation:** ⚠️ REFER TO CREDIT COMMITTEE  \n**Risk grade:** E (39/100)\n\n> Synthetic data. Generated by CreditAgent for demonstration only.\n\n## Applicant and facility\n| | |\n|---|---|\n| Applicant | Rahul Verma |\n| Employment | salaried — Bluepeak Consulting LLP |\n| Product | Personal Loan |\n| Amount / tenure | ₹12,00,000 / 60 months @ 13.0% |\n| Purpose | Debt consolidation |\n\n## Financial analysis\n| Metric | Value |\n|---|---|\n| Declared income | ₹1,50,000 |\n| Income per proof document | ₹1,50,000 |\n| Income per bank credits | ₹92,000 |\n| **Assessed income (lowest verified)** | **₹92,000** |\n| Existing EMIs | ₹27,500 |\n| Proposed EMI | ₹27,304 |\n| **FOIR** | **59.6%** |\n| Loan / annual income | 1.09x |\n| Avg month-end balance | ₹21,800 |\n| Bureau score / max DPD / enquiries (6m) | 735 / 0 / 3 |\n\n## Policy checks\n| Rule | Type | Actual | Threshold | Result |\n|---|---|---|---|---|\n| Bureau score | Hard | 735 | >= 700 | ✅ |\n| Max DPD (12m) | Hard | 0 | <= 30 | ✅ |\n| Written-off / settled accounts | Hard | 0 | <= 0 | ✅ |\n| FOIR on assessed income | Hard | 59.6% | <= 50% | ❌ |\n| Minimum monthly income | Hard | ₹92,000 | >= ₹25,000 | ✅ |\n| Enquiries (6m) | Soft | 3 | <= 4 | ✅ |\n| Cheque / ACH bounces (3m) | Soft | 0 | <= 1 | ✅ |\n| Avg balance covers proposed EMI | Soft | ₹21,800 | >= ₹27,304 | ❌ |\n\n## Discrepancies\n| Severity | Check | Detail |\n|---|---|---|\n| HIGH | `EMPLOYER_MISMATCH_BANK` | Salary is credited by a different entity ('NEFT SAL ORION RETAIL PVT LTD') than the declared employer ('Bluepeak Consulting LLP'). |\n| HIGH | `INCOME_MISMATCH_BANK` | Income proof shows ₹1,50,000/month but bank credits average ₹92,000/month (39% gap). |\n| HIGH | `UNDISCLOSED_OBLIGATION` | Recurring EMI of ₹18,000 to 'QUICKCASH FINANCE' appears in the bank statement but not in the bureau report. |\n\n## Reasons for recommendation\n- 3 high-severity discrepancy(ies) need manual verification before a credit decision.\n- Policy would also fail: FOIR on assessed income (59.6% vs <= 50%).\n\n## Analyst commentary\nRahul Verma (salaried) has requested ₹12,00,000 over 60 months. Underwriting uses the lowest verified income of ₹92,000/month, giving a FOIR of 59.6% including the proposed EMI of ₹27,304. 3 discrepancy(ies) were found across the documents; these must be resolved before the file can be relied on. Policy exceptions: FOIR on assessed income, Avg balance covers proposed EMI. Risk grade E (39/100).\n", "memo_source": "template", "trace": ["memo: written (template)"]}}], "high_risk_self_employed": [{"node": "ingest", "update": {"documents": {"application": "<json>", "itr_summary": "<text>", "bank_statement": "<17 rows>", "bureau_report": "<text>"}, "missing_documents": [], "trace": ["ingest: loaded ['application', 'bank_statement', 'bureau_report', 'itr_summary']"]}}, {"node": "extract", "update": {"extracted": {"application": {"application_id": "APP-1003", "declared_monthly_income": 80000, "loan": {"product": "business_loan", "amount": 1000000, "tenure_months": 60, "annual_rate_pct": 16.0, "purpose": "Working capital"}, "applicant": {"name": "Sunil Kadam", "pan": "CDESK9012M", "dob": "1982-07-21", "employment_type": "self_employed", "employer": "Kadam Hardware Traders"}}, "bank_statement": {"months_covered": 3, "avg_salary_credit": null, "salary_narration": null, "avg_monthly_credits": 78000, "recurring_emis": {"HARBOR BANK BUSINESS LOAN": 19000.0, "LAKEVIEW BANK GOLD LOAN": 12000.0}, "total_emi_observed": 31000, "bounce_count": 2, "avg_month_end_balance": 4067}, "bureau_report": {"name": "Sunil Kadam", "pan": "CDESK9012M", "score": 641, "enquiries_6m": 6, "max_dpd_12m": 60, "written_off": 0, "accounts": [{"type": "Business Loan", "lender": "Harbor Bank", "sanctioned": 800000.0, "outstanding": 510000.0, "emi": 19000.0, "dpd": 60.0}, {"type": "Gold Loan", "lender": "Lakeview Bank", "sanctioned": 300000.0, "outstanding": 240000.0, "emi": 12000.0, "dpd": 0.0}], "total_emi": 31000.0}, "itr_summary": {"employer": "Kadam Hardware Traders", "name": "Sunil Kadam", "pan": "CDESK9012M", "annual_income": 984000.0, "net_monthly": 82000}}, "trace": ["extract: structured 4 documents"]}}, {"node": "detect_discrepancies", "update": {"discrepancies": [], "trace": ["discrepancies: 0 found []"]}}, {"node": "analyze", "update": {"metrics": {"income_sources": {"declared": 80000, "income_proof": 82000, "bank": 78000}, "assessed_monthly_income": 78000, "existing_emi": 31000.0, "proposed_emi": 24318, "foir": 0.709, "foir_on_declared": 0.691, "loan_to_annual_income": 1.07, "avg_month_end_balance": 4067, "bounce_count": 2, "score": 641, "max_dpd_12m": 60, "enquiries_6m": 6, "written_off": 0}, "trace": ["analyze: assessed income ₹78,000, FOIR 70.9%"]}}, {"node": "policy_check", "update": {"policy_results": [{"rule": "Bureau score", "passed": false, "hard": true, "actual": 641, "threshold": ">= 700"}, {"rule": "Max DPD (12m)", "passed": false, "hard": true, "actual": 60, "threshold": "<= 30"}, {"rule": "Written-off / settled accounts", "passed": true, "hard": true, "actual": 0, "threshold": "<= 0"}, {"rule": "FOIR on assessed income", "passed": false, "hard": true, "actual": "70.9%", "threshold": "<= 50%"}, {"rule": "Minimum monthly income", "passed": true, "hard": true, "actual": "₹78,000", "threshold": ">= ₹25,000"}, {"rule": "Enquiries (6m)", "passed": false, "hard": false, "actual": 6, "threshold": "<= 4"}, {"rule": "Cheque / ACH bounces (3m)", "passed": false, "hard": false, "actual": 2, "threshold": "<= 1"}, {"rule": "Avg balance covers proposed EMI", "passed": false, "hard": false, "actual": "₹4,067", "threshold": ">= ₹24,318"}], "trace": ["policy: 2/8 passed; failed ['Bureau score', 'Max DPD (12m)', 'FOIR on assessed income', 'Enquiries (6m)', 'Cheque / ACH bounces (3m)', 'Avg balance covers proposed EMI']"]}}, {"node": "risk_grade", "update": {"risk_grade": "E", "risk_points": 0, "trace": ["risk: grade E (0/100)"]}}, {"node": "decide", "update": {"decision": "DECLINE", "decision_reasons": ["Hard policy breach: Bureau score (641 vs >= 700).", "Hard policy breach: Max DPD (12m) (60 vs <= 30).", "Hard policy breach: FOIR on assessed income (70.9% vs <= 50%)."], "trace": ["decide: DECLINE"]}}, {"node": "write_memo", "update": {"memo": "# Credit Memo — APP-1003\n\n**Recommendation:** ❌ DECLINE  \n**Risk grade:** E (0/100)\n\n> Synthetic data. Generated by CreditAgent for demonstration only.\n\n## Applicant and facility\n| | |\n|---|---|\n| Applicant | Sunil Kadam |\n| Employment | self-employed — Kadam Hardware Traders |\n| Product | Business Loan |\n| Amount / tenure | ₹10,00,000 / 60 months @ 16.0% |\n| Purpose | Working capital |\n\n## Financial analysis\n| Metric | Value |\n|---|---|\n| Declared income | ₹80,000 |\n| Income per proof document | ₹82,000 |\n| Income per bank credits | ₹78,000 |\n| **Assessed income (lowest verified)** | **₹78,000** |\n| Existing EMIs | ₹31,000 |\n| Proposed EMI | ₹24,318 |\n| **FOIR** | **70.9%** |\n| Loan / annual income | 1.07x |\n| Avg month-end balance | ₹4,067 |\n| Bureau score / max DPD / enquiries (6m) | 641 / 60 / 6 |\n\n## Policy checks\n| Rule | Type | Actual | Threshold | Result |\n|---|---|---|---|---|\n| Bureau score | Hard | 641 | >= 700 | ❌ |\n| Max DPD (12m) | Hard | 60 | <= 30 | ❌ |\n| Written-off / settled accounts | Hard | 0 | <= 0 | ✅ |\n| FOIR on assessed income | Hard | 70.9% | <= 50% | ❌ |\n| Minimum monthly income | Hard | ₹78,000 | >= ₹25,000 | ✅ |\n| Enquiries (6m) | Soft | 6 | <= 4 | ❌ |\n| Cheque / ACH bounces (3m) | Soft | 2 | <= 1 | ❌ |\n| Avg balance covers proposed EMI | Soft | ₹4,067 | >= ₹24,318 | ❌ |\n\n## Discrepancies\nNone found.\n\n## Reasons for recommendation\n- Hard policy breach: Bureau score (641 vs >= 700).\n- Hard policy breach: Max DPD (12m) (60 vs <= 30).\n- Hard policy breach: FOIR on assessed income (70.9% vs <= 50%).\n\n## Analyst commentary\nSunil Kadam (self-employed) has requested ₹10,00,000 over 60 months. Underwriting uses the lowest verified income of ₹78,000/month, giving a FOIR of 70.9% including the proposed EMI of ₹24,318. Identity, employer and income are consistent across the application, income proof, bank statement and bureau report. Policy exceptions: Bureau score, Max DPD (12m), FOIR on assessed income, Enquiries (6m), Cheque / ACH bounces (3m), Avg balance covers proposed EMI. Risk grade E (0/100).\n", "memo_source": "template", "trace": ["memo: written (template)"]}}]}, "docs": {"clean_salaried": {"application.json": "{\n  \"application_id\": \"APP-1001\",\n  \"synthetic\": true,\n  \"applicant\": {\n    \"name\": \"Priya Menon\",\n    \"pan\": \"ABCPM1234K\",\n    \"dob\": \"1990-04-14\",\n    \"employment_type\": \"salaried\",\n    \"employer\": \"Northwind Technologies Pvt Ltd\"\n  },\n  \"declared_monthly_income\": 120000,\n  \"loan\": {\n    \"product\": \"personal_loan\",\n    \"amount\": 800000,\n    \"tenure_months\": 48,\n    \"annual_rate_pct\": 12.0,\n    \"purpose\": \"Home renovation\"\n  }\n}\n", "bank_statement.csv": "date,description,debit,credit,balance\n2026-06-01,NEFT SALARY NORTHWIND TECHNOLOGIES,,120000,184500\n2026-06-05,ACH EMI LAKEVIEW BANK AUTO LOAN,12000,,172500\n2026-06-11,UPI GROCERY MART,6400,,166100\n2026-06-18,CARD PAYMENT CREDIT CARD,28500,,137600\n2026-06-26,SIP MUTUAL FUND,15000,,122600\n2026-06-30,ATM WITHDRAWAL,10000,,112600\n2026-07-01,NEFT SALARY NORTHWIND TECHNOLOGIES,,120000,232600\n2026-07-05,ACH EMI LAKEVIEW BANK AUTO LOAN,12000,,220600\n2026-07-12,UPI ELECTRICITY BILL,3900,,216700\n2026-07-19,CARD PAYMENT CREDIT CARD,31200,,185500\n2026-07-26,SIP MUTUAL FUND,15000,,170500\n2026-07-30,RENT TRANSFER,32000,,138500\n2026-08-01,NEFT SALARY NORTHWIND TECHNOLOGIES,,120000,258500\n2026-08-05,ACH EMI LAKEVIEW BANK AUTO LOAN,12000,,246500\n2026-08-14,UPI GROCERY MART,7100,,239400\n2026-08-20,CARD PAYMENT CREDIT CARD,26800,,212600\n2026-08-26,SIP MUTUAL FUND,15000,,197600\n2026-08-30,RENT TRANSFER,32000,,165600\n", "bureau_report.txt": "CONSUMER CREDIT BUREAU REPORT\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\nReport Date: 2026-09-02\n\nName        : Priya Menon\nPAN         : ABCPM1234K\nDate of Birth: 1990-04-14\n\nCredit Score                  : 782\nEnquiries (last 6 months)     : 1\nMax DPD (last 12 months)      : 0\nWritten-off / Settled accounts: 0\n\nActive Accounts:\n- Auto Loan | Lender: Lakeview Bank | Sanctioned: 6,00,000 | Outstanding: 2,10,000 | EMI: 12,000 | DPD: 0\n- Credit Card | Lender: Lakeview Bank | Limit: 3,00,000 | Outstanding: 26,800 | EMI: 0 | DPD: 0\n", "payslip.txt": "NORTHWIND TECHNOLOGIES PVT LTD\nPayslip for the month of August 2026\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\n\nEmployee Name : Priya Menon\nEmployee ID   : NW-20931\nPAN           : ABCPM1234K\nDesignation   : Senior Product Analyst\n\nBasic Salary        : 76,000\nHRA                 : 38,000\nSpecial Allowance   : 38,000\nGross Earnings      : 1,52,000\n\nProvident Fund      : 9,120\nProfessional Tax    : 200\nIncome Tax (TDS)    : 22,680\nTotal Deductions    : 32,000\n\nNet Pay             : 1,20,000\n"}, "income_mismatch": {"application.json": "{\n  \"application_id\": \"APP-1002\",\n  \"synthetic\": true,\n  \"applicant\": {\n    \"name\": \"Rahul Verma\",\n    \"pan\": \"BCDRV5678L\",\n    \"dob\": \"1987-11-02\",\n    \"employment_type\": \"salaried\",\n    \"employer\": \"Bluepeak Consulting LLP\"\n  },\n  \"declared_monthly_income\": 150000,\n  \"loan\": {\n    \"product\": \"personal_loan\",\n    \"amount\": 1200000,\n    \"tenure_months\": 60,\n    \"annual_rate_pct\": 13.0,\n    \"purpose\": \"Debt consolidation\"\n  }\n}\n", "bank_statement.csv": "date,description,debit,credit,balance\n2026-06-01,NEFT SAL ORION RETAIL PVT LTD,,92000,48200\n2026-06-04,ACH EMI LAKEVIEW BANK TWO WHEELER,9500,,38700\n2026-06-07,ACH EMI QUICKCASH FINANCE,18000,,20700\n2026-06-15,UPI FOOD DELIVERY,4300,,16400\n2026-06-28,ATM WITHDRAWAL,8000,,8400\n2026-07-01,NEFT SAL ORION RETAIL PVT LTD,,92000,100400\n2026-07-04,ACH EMI LAKEVIEW BANK TWO WHEELER,9500,,90900\n2026-07-07,ACH EMI QUICKCASH FINANCE,18000,,72900\n2026-07-16,RENT TRANSFER,28000,,44900\n2026-07-27,CARD PAYMENT CREDIT CARD,22600,,22300\n2026-08-01,NEFT SAL ORION RETAIL PVT LTD,,92000,114300\n2026-08-04,ACH EMI LAKEVIEW BANK TWO WHEELER,9500,,104800\n2026-08-07,ACH EMI QUICKCASH FINANCE,18000,,86800\n2026-08-16,RENT TRANSFER,28000,,58800\n2026-08-27,CARD PAYMENT CREDIT CARD,24100,,34700\n", "bureau_report.txt": "CONSUMER CREDIT BUREAU REPORT\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\nReport Date: 2026-09-03\n\nName        : Rahul Verma\nPAN         : BCDRV5678L\nDate of Birth: 1987-11-02\n\nCredit Score                  : 735\nEnquiries (last 6 months)     : 3\nMax DPD (last 12 months)      : 0\nWritten-off / Settled accounts: 0\n\nActive Accounts:\n- Two Wheeler Loan | Lender: Lakeview Bank | Sanctioned: 1,40,000 | Outstanding: 62,000 | EMI: 9,500 | DPD: 0\n- Credit Card | Lender: Harbor Bank | Limit: 1,50,000 | Outstanding: 24,100 | EMI: 0 | DPD: 0\n", "payslip.txt": "BLUEPEAK CONSULTING LLP\nPayslip for the month of August 2026\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\n\nEmployee Name : Rahul Verma\nEmployee ID   : BPC-0417\nPAN           : BCDRV5678L\nDesignation   : Engagement Manager\n\nBasic Salary        : 95,000\nHRA                 : 47,500\nSpecial Allowance   : 47,500\nGross Earnings      : 1,90,000\n\nProvident Fund      : 11,400\nProfessional Tax    : 200\nIncome Tax (TDS)    : 28,400\nTotal Deductions    : 40,000\n\nNet Pay             : 1,50,000\n"}, "high_risk_self_employed": {"application.json": "{\n  \"application_id\": \"APP-1003\",\n  \"synthetic\": true,\n  \"applicant\": {\n    \"name\": \"Sunil Kadam\",\n    \"pan\": \"CDESK9012M\",\n    \"dob\": \"1982-07-21\",\n    \"employment_type\": \"self_employed\",\n    \"employer\": \"Kadam Hardware Traders\"\n  },\n  \"declared_monthly_income\": 80000,\n  \"loan\": {\n    \"product\": \"business_loan\",\n    \"amount\": 1000000,\n    \"tenure_months\": 60,\n    \"annual_rate_pct\": 16.0,\n    \"purpose\": \"Working capital\"\n  }\n}\n", "bank_statement.csv": "date,description,debit,credit,balance\n2026-06-03,UPI COLLECTION KADAM HARDWARE,,41000,22400\n2026-06-06,ACH EMI HARBOR BANK BUSINESS LOAN,19000,,3400\n2026-06-07,ACH RETURN INSUFFICIENT FUNDS,,,3400\n2026-06-17,CASH DEPOSIT,,36000,39400\n2026-06-20,ACH EMI LAKEVIEW BANK GOLD LOAN,12000,,27400\n2026-06-28,SUPPLIER PAYMENT,24000,,3400\n2026-07-03,UPI COLLECTION KADAM HARDWARE,,44000,47400\n2026-07-06,ACH EMI HARBOR BANK BUSINESS LOAN,19000,,28400\n2026-07-18,CASH DEPOSIT,,35000,63400\n2026-07-20,ACH EMI LAKEVIEW BANK GOLD LOAN,12000,,51400\n2026-07-29,SUPPLIER PAYMENT,46000,,5400\n2026-08-04,UPI COLLECTION KADAM HARDWARE,,39000,44400\n2026-08-06,ACH EMI HARBOR BANK BUSINESS LOAN,19000,,25400\n2026-08-16,CASH DEPOSIT,,39000,64400\n2026-08-20,ACH EMI LAKEVIEW BANK GOLD LOAN,12000,,52400\n2026-08-21,ACH RETURN INSUFFICIENT FUNDS,,,52400\n2026-08-30,SUPPLIER PAYMENT,49000,,3400\n", "bureau_report.txt": "CONSUMER CREDIT BUREAU REPORT\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\nReport Date: 2026-09-04\n\nName        : Sunil Kadam\nPAN         : CDESK9012M\nDate of Birth: 1982-07-21\n\nCredit Score                  : 641\nEnquiries (last 6 months)     : 6\nMax DPD (last 12 months)      : 60\nWritten-off / Settled accounts: 0\n\nActive Accounts:\n- Business Loan | Lender: Harbor Bank | Sanctioned: 8,00,000 | Outstanding: 5,10,000 | EMI: 19,000 | DPD: 60\n- Gold Loan | Lender: Lakeview Bank | Sanctioned: 3,00,000 | Outstanding: 2,40,000 | EMI: 12,000 | DPD: 0\n", "itr_summary.txt": "INCOME TAX RETURN - ACKNOWLEDGEMENT SUMMARY\n(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)\n\nAssessee Name      : Sunil Kadam\nPAN                : CDESK9012M\nAssessment Year    : 2026-27\nBusiness Name      : Kadam Hardware Traders\nNature of Business : Retail trade - hardware\n\nGross Turnover     : 64,20,000\nGross Total Income : 9,84,000\nTotal Tax Paid     : 1,02,400\n"}}};
+
+const CASES = [
+  { id: "clean_salaried", name: "Priya Menon", app: "APP-1001", desc: "Salaried, ₹8L personal loan. Documents agree." },
+  { id: "income_mismatch", name: "Rahul Verma", app: "APP-1002", desc: "Salaried, ₹12L personal loan. Payslip and bank tell different stories." },
+  { id: "high_risk_self_employed", name: "Sunil Kadam", app: "APP-1003", desc: "Self-employed, ₹10L business loan. Weak credit history." },
+];
+
+const STEPS = [
+  { node: "graph", title: "The graph", file: "credit_agent/graph.py",
+    explain: "CreditAgent is a LangGraph StateGraph. Each node is a plain Python function that reads the shared state and returns only the keys it changes. LangGraph merges those updates and passes the state to the next node.",
+    why: "<b>Why a graph and not one big function?</b> Each step is independently testable, the trace shows exactly which node made which decision, and new steps (like a human review pause) slot in without rewriting the rest." },
+  { node: "ingest", title: "Ingest the loan file", file: "credit_agent/graph.py",
+    explain: "Loads every document in the application folder and checks that the right income proof is present for the employment type: a payslip for salaried applicants, an ITR for the self-employed.",
+    why: "<b>Conditional edge.</b> <span class=\"mono\">route_after_ingest</span> returns the name of the next node. A missing document sends the file to <span class=\"mono\">incomplete</span> instead of wasting work on a file that can't be decided." },
+  { node: "extract", title: "Extract structured fields", file: "credit_agent/extract.py",
+    explain: "Turns semi-structured text into fields: employer and net pay from the payslip, salary credits, recurring EMIs and bounces from the bank statement, and score, DPD and accounts from the bureau report.",
+    why: "<b>Rule-based on purpose.</b> It keeps the demo offline and reproducible. In production this is where an LLM or document-AI model would sit, returning the same schema so nothing downstream changes." },
+  { node: "detect_discrepancies", title: "Cross-check the documents", file: "credit_agent/checks.py",
+    explain: "Compares every source against the others: name and PAN, declared employer against who actually pays the salary, declared income against the payslip and bank credits, and EMIs in the bank statement against loans in the bureau report.",
+    why: "<b>The step most tools skip.</b> Each document can look fine on its own. Risk shows up in the gaps between them, so this node often matters more than the score." },
+  { node: "analyze", title: "Compute affordability", file: "credit_agent/analysis.py",
+    explain: "Underwrites on the lowest verified income and the higher of bureau or banked EMIs, then works out the proposed EMI and FOIR (fixed obligations to income ratio).",
+    why: "<b>Conservative by construction.</b> Taking min() of income and max() of obligations mirrors how a cautious credit officer reads a file, and it automatically absorbs an undisclosed loan." },
+  { node: "policy_check", title: "Apply credit policy", file: "credit_agent/analysis.py",
+    explain: "Runs eight rules. Hard rules (score, DPD, write-offs, FOIR, minimum income) can decline a file. Soft rules (enquiries, bounces, balance cover) send it for review.",
+    why: "<b>Policy is data, not prose.</b> Each rule records the actual value and the threshold, so the memo can show exactly why it passed or failed." },
+  { node: "risk_grade", title: "Grade the risk", file: "credit_agent/analysis.py",
+    explain: "Starts at 100 points and deducts for weak score, high FOIR, delinquency, enquiries, bounces and discrepancies, then maps the total to a grade from A to E.",
+    why: "<b>Explainable over clever.</b> A points model can be defended line by line to a credit committee or an auditor. A black-box score can't." },
+  { node: "decide", title: "Make the recommendation", file: "credit_agent/analysis.py",
+    explain: "Applies the decision order: high-severity discrepancies refer the file first, then hard breaches decline, then soft exceptions refer. Only a clean file is approved.",
+    why: "<b>Discrepancies outrank policy.</b> If the documents disagree, the numbers can't be trusted yet, so the right answer is a human review rather than a score." },
+  { node: "write_memo", title: "Write the credit memo", file: "credit_agent/memo.py",
+    explain: "Builds a markdown credit memo with the facility, financial analysis, policy table, discrepancies and reasons. If an LLM is configured, it writes the analyst commentary.",
+    why: "<b>Grounding guard.</b> Every number in LLM-written text is checked against the facts it was given. One untraceable figure and the commentary is discarded and the template is used instead." },
+];
+
+/* ---------- helpers ---------- */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function inr(n) {
+  if (n == null) return "—";
+  const neg = n < 0; let s = String(Math.round(Math.abs(n)));
+  if (s.length > 3) { let head = s.slice(0, -3); const tail = s.slice(-3); const g = []; while (head.length > 2) { g.unshift(head.slice(-2)); head = head.slice(0, -2); } if (head) g.unshift(head); s = g.join(",") + "," + tail; }
+  return (neg ? "-" : "") + "₹" + s;
+}
+const pct = (x) => (x * 100).toFixed(1) + "%";
+
+function highlight(src) {
+  const KW = new Set("def return if else elif for in not and or is None True False from import as with try except lambda yield class pass raise while break continue".split(" "));
+  const BI = new Set("len sum min max round sorted set list dict str int float abs next any all isinstance enumerate zip range print".split(" "));
+  const re = /(#[^\n]*)|("""[\s\S]*?"""|f?"(?:\\.|[^"\\])*"|f?'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)(\s*\()?|([\s\S])/g;
+  let out = "", m;
+  while ((m = re.exec(src))) {
+    if (m[1]) out += `<span class="tk-com">${esc(m[1])}</span>`;
+    else if (m[2]) out += `<span class="tk-str">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="tk-num">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], paren = m[5] || "";
+      if (KW.has(w)) out += `<span class="tk-kw">${w}</span>` + esc(paren);
+      else if (BI.has(w) && paren) out += `<span class="tk-bi">${w}</span>` + esc(paren);
+      else if (paren) out += `<span class="tk-fn">${w}</span>` + esc(paren);
+      else out += w;
+    } else out += esc(m[6]);
+  }
+  return out.split("\n").map((l, i) => `<span class="ln">${i + 1}</span>${l}`).join("\n");
+}
+
+function md(text) {
+  const lines = text.split("\n"); let html = "", i = 0;
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>");
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith("|")) {
+      const rows = []; while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
+      const cells = (r) => r.replace(/^\||\|\s*$/g, "").split("|").map((c) => c.trim());
+      html += "<div class='tbl'><table>" + rows.filter((r) => !/^\|[-|\s]+\|$/.test(r)).map((r, k) => "<tr>" + cells(r).map((c) => k === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</table></div>";
+      continue;
+    }
+    if (l.startsWith("# ")) html += `<h1>${inline(l.slice(2))}</h1>`;
+    else if (l.startsWith("## ")) html += `<h2>${inline(l.slice(3))}</h2>`;
+    else if (l.startsWith("> ")) html += `<blockquote>${inline(l.slice(2))}</blockquote>`;
+    else if (l.startsWith("- ")) { let items = ""; while (i < lines.length && lines[i].startsWith("- ")) items += `<li>${inline(lines[i++].slice(2))}</li>`; html += `<ul>${items}</ul>`; continue; }
+    else if (l.trim()) html += `<p>${inline(l)}</p>`;
+    i++;
+  }
+  return html;
+}
+
+/* ---------- state ---------- */
+let caseId = "income_mismatch", step = 0, timer = null;
+try { const saved = localStorage.getItem("ca-case"); if (CASES.some((c) => c.id === saved)) caseId = saved; } catch (e) {}
+const stepsFor = () => DATA.cases[caseId];
+const upd = (node) => (stepsFor().find((s) => s.node === node) || {}).update || {};
+
+/* ---------- per-node output renderers ---------- */
+const R = {
+  graph() {
+    return `<h3>The pipeline, in order</h3>
+      <ol class="overview-steps">${STEPS.slice(1).map((s) => `<li><code>${s.node}</code><span>${s.title}</span></li>`).join("")}</ol>
+      <h3>Shared state</h3>
+      <p class="explain">Every node reads and writes one typed dictionary: documents, extracted fields, discrepancies, metrics, policy results, grade, decision and memo. A <span class="mono">trace</span> list is appended to by every node, so you can see the run step by step.</p>`;
+  },
+  ingest(u) {
+    const docs = Object.entries(u.documents).map(([k, v]) => `<span class="chip ok">${k} ${esc(v)}</span>`).join("");
+    const missing = u.missing_documents.length ? u.missing_documents.map((m) => `<span class="chip bad">${m}</span>`).join("") : `<span class="chip">none</span>`;
+    return `<h3>Documents loaded</h3><div class="chips">${docs}</div>
+      <h3>Missing</h3><div class="chips">${missing}</div>
+      <h3>Route taken</h3><p>All required documents are present, so the graph continues to <span class="mono">extract</span>.</p>`;
+  },
+  extract(u) {
+    const e = u.extracted, inc = e.payslip || e.itr_summary, b = e.bank_statement, br = e.bureau_report;
+    const emis = Object.entries(b.recurring_emis).map(([p, v]) => `<div>${esc(p)} <span class="num">${inr(v)}</span></div>`).join("");
+    return `<h3>What the agent pulled out</h3><div class="cards">
+      <div class="card"><b>${e.payslip ? "Payslip" : "ITR summary"}</b><dl class="kv">
+        <dt>Name</dt><dd>${esc(inc.name)}</dd><dt>${e.payslip ? "Employer" : "Business"}</dt><dd>${esc(inc.employer)}</dd>
+        <dt>Net monthly</dt><dd>${inr(inc.net_monthly)}</dd></dl></div>
+      <div class="card"><b>Bank statement (${b.months_covered} months)</b><dl class="kv">
+        <dt>${b.avg_salary_credit ? "Salary credit" : "Avg credits"}</dt><dd>${inr(b.avg_salary_credit || b.avg_monthly_credits)}</dd>
+        ${b.salary_narration ? `<dt>Paid by</dt><dd class="mono" style="font-size:12px">${esc(b.salary_narration)}</dd>` : ""}
+        <dt>Recurring EMIs</dt><dd>${emis}</dd>
+        <dt>Bounces</dt><dd>${b.bounce_count}</dd><dt>Avg balance</dt><dd>${inr(b.avg_month_end_balance)}</dd></dl></div>
+      <div class="card"><b>Bureau report</b><dl class="kv">
+        <dt>Score</dt><dd>${br.score}</dd><dt>Max DPD 12m</dt><dd>${br.max_dpd_12m}</dd><dt>Enquiries 6m</dt><dd>${br.enquiries_6m}</dd>
+        <dt>Accounts</dt><dd>${br.accounts.map((a) => `${esc(a.type)} · ${esc(a.lender)}${a.emi ? " · " + inr(a.emi) : ""}`).join("<br>")}</dd></dl></div>
+    </div>`;
+  },
+  detect_discrepancies(u) {
+    const codes = new Set(u.discrepancies.map((d) => d.code));
+    const groups = [["Identity (name, PAN)", ["NAME_MISMATCH", "PAN_MISMATCH"]], ["Employer vs salary payer", ["EMPLOYER_MISMATCH_DOCUMENT", "EMPLOYER_MISMATCH_BANK"]],
+      ["Income across sources", ["INCOME_MISMATCH_DOCUMENT", "INCOME_MISMATCH_BANK"]], ["Loans in bank vs bureau", ["UNDISCLOSED_OBLIGATION"]]];
+    const checks = groups.map(([label, cs]) => { const bad = cs.some((c) => codes.has(c)); return `<div class="check"><span class="mark ${bad ? "bad" : "ok"}">${bad ? "✕" : "✓"}</span>${label}</div>`; }).join("");
+    const flags = u.discrepancies.length ? u.discrepancies.map((d) => `<div class="flag"><span class="pill ${d.severity}">${d.severity}</span><code>${d.code}</code><p>${esc(d.detail)}</p></div>`).join("")
+      : `<p>No discrepancies. The application, income proof, bank statement and bureau report agree.</p>`;
+    return `<h3>Checks run</h3><div class="checks">${checks}</div><h3>Flags raised (${u.discrepancies.length})</h3><div>${flags}</div>`;
+  },
+  analyze(u) {
+    const m = u.metrics, src = m.income_sources;
+    const rows = [["Declared", src.declared], ["Income proof", src.income_proof], ["Bank credits", src.bank]].filter((r) => r[1]);
+    const max = Math.max(...rows.map((r) => r[1]));
+    const bars = rows.map(([l, v]) => `<div class="bar-row ${v === m.assessed_monthly_income ? "min" : ""}"><span>${l}</span><div class="bar-track"><div class="bar-fill" style="width:${(v / max) * 100}%"></div></div><span class="bar-val">${inr(v)}</span></div>`).join("");
+    const scaleMax = 1.0, limit = 0.5, f = Math.min(m.foir, scaleMax);
+    const color = m.foir > limit ? "var(--bad)" : m.foir > 0.4 ? "var(--warn)" : "var(--ok)";
+    return `<h3>Monthly income by source (lowest is used)</h3><div class="bars">${bars}</div>
+      <h3>FOIR against the 50% limit</h3>
+      <div class="gauge"><div style="display:flex;align-items:baseline;gap:10px"><span class="big" style="color:${color}">${pct(m.foir)}</span><span style="color:var(--muted);font-size:13px">(${inr(m.existing_emi)} existing + ${inr(m.proposed_emi)} proposed) ÷ ${inr(m.assessed_monthly_income)}</span></div>
+        <div class="gauge-track"><div class="gauge-fill" style="width:${(f / scaleMax) * 100}%;background:${color}"></div><div class="gauge-limit" style="left:${(limit / scaleMax) * 100}%"></div></div>
+        <div class="gauge-scale"><span>0%</span><span>50% limit</span><span>100%</span></div></div>
+      ${m.foir_on_declared !== m.foir ? `<p style="font-size:13.5px;color:var(--muted)">On the declared numbers alone, FOIR would have looked like <b style="color:var(--ink)">${pct(m.foir_on_declared)}</b>.</p>` : ""}`;
+  },
+  policy_check(u) {
+    const rows = u.policy_results.map((r) => `<tr class="${r.passed ? "" : "fail"}"><td>${esc(r.rule)}</td><td>${r.hard ? "Hard" : "Soft"}</td><td>${esc(r.actual)}</td><td>${esc(r.threshold)}</td><td>${r.passed ? '<span class="mark ok">✓</span>' : '<span class="mark bad">✕</span>'}</td></tr>`).join("");
+    const passed = u.policy_results.filter((r) => r.passed).length;
+    return `<h3>${passed} of ${u.policy_results.length} rules passed</h3><div class="tbl"><table class="rules"><thead><tr><th>Rule</th><th>Type</th><th>Actual</th><th>Threshold</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  },
+  risk_grade(u) {
+    const bands = [["A", "85+"], ["B", "70–84"], ["C", "55–69"], ["D", "40–54"], ["E", "<40"]];
+    return `<h3>Score</h3><div style="display:flex;align-items:baseline;gap:8px"><span class="big">${u.risk_points}</span><span style="color:var(--muted)">/ 100 points</span></div>
+      <h3>Grade</h3><div class="grade-row">${bands.map(([g, r]) => `<div class="grade-cell ${g === u.risk_grade ? "on" : ""}">${g}<small>${r}</small></div>`).join("")}</div>`;
+  },
+  decide(u) {
+    const label = { APPROVE: "APPROVE", REFER: "REFER", DECLINE: "DECLINE" }[u.decision] || u.decision;
+    return `<span class="stamp ${u.decision}">${label}</span><h3>Reasons</h3><ul class="reasons">${u.decision_reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`;
+  },
+  write_memo(u) {
+    return `<h3>Generated memo (commentary source: ${u.memo_source})</h3><div class="memo">${md(u.memo)}</div>`;
+  },
+};
+
+/* ---------- render ---------- */
+function render() {
+  const s = STEPS[step];
+  $("#cases").innerHTML = CASES.map((c) => `<button class="case" aria-pressed="${c.id === caseId}" data-case="${c.id}"><span class="cid">${c.app}</span><span class="cname">${c.name}</span><span class="cdesc">${c.desc}</span></button>`).join("");
+  $("#rail").innerHTML = STEPS.slice(1).map((x, i) => `<li class="${i + 1 < step ? "done" : ""} ${i + 1 === step ? "active done" : ""}"><button class="node" data-step="${i + 1}"><span class="dot"></span>${x.node}</button></li>`).join("");
+  const u = s.node === "graph" ? {} : upd(s.node);
+  const trace = (u.trace || []).map((t) => { const [n, ...rest] = t.split(": "); return `<b>${esc(n)}</b>: ${esc(rest.join(": "))}`; }).join("\n");
+  $("#left").innerHTML = `<div class="step-head"><span class="nodename">${s.node === "graph" ? "build_graph()" : "node · " + s.node}</span><h2>${s.title}</h2></div>
+    <p class="explain">${s.explain}</p>
+    ${trace ? `<div class="trace">${trace}</div>` : ""}
+    ${R[s.node](u)}
+    ${s.node !== "graph" ? `<details class="raw"><summary>Raw state update returned by this node</summary><pre>${esc(JSON.stringify(u, null, 2))}</pre></details>` : ""}`;
+  $("#file").textContent = s.file;
+  $("#code").innerHTML = highlight(DATA.code[s.node]);
+  $("#why").innerHTML = s.why;
+  $("#count").textContent = `Step ${step} of ${STEPS.length - 1}`;
+  $("#bar").style.width = (step / (STEPS.length - 1)) * 100 + "%";
+  $("#prev").disabled = step === 0;
+  $("#next").disabled = step === STEPS.length - 1;
+  $("#next").textContent = step === 0 ? "Start →" : "Next step →";
+  const active = document.querySelector(".rail li.active");
+  if (active) active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  renderDocs();
+}
+
+let docName = null;
+function renderDocs() {
+  const docs = DATA.docs[caseId], names = Object.keys(docs);
+  if (!names.includes(docName)) docName = names[0];
+  $("#doctabs").innerHTML = names.map((n) => `<button class="doc-tab" role="tab" aria-selected="${n === docName}" data-doc="${n}">${n}</button>`).join("");
+  $("#doc").textContent = docs[docName];
+}
+
+function go(n) { step = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("#play").textContent = "▶ Play"; $("#play").setAttribute("aria-pressed", "false"); }
+
+document.addEventListener("click", (e) => {
+  const c = e.target.closest("[data-case]"); if (c) { caseId = c.dataset.case; try { localStorage.setItem("ca-case", caseId); } catch (_) {} render(); return; }
+  const n = e.target.closest("[data-step]"); if (n) { stop(); go(+n.dataset.step); return; }
+  const d = e.target.closest("[data-doc]"); if (d) { docName = d.dataset.doc; renderDocs(); }
+});
+$("#prev").onclick = () => { stop(); go(step - 1); };
+$("#next").onclick = () => { stop(); go(step + 1); };
+$("#play").onclick = () => {
+  if (timer) return stop();
+  if (step === STEPS.length - 1) go(0);
+  $("#play").textContent = "❚❚ Pause"; $("#play").setAttribute("aria-pressed", "true");
+  timer = setInterval(() => { if (step >= STEPS.length - 1) return stop(); go(step + 1); }, 4500);
+};
+$("#copy").onclick = async () => {
+  const text = DATA.code[STEPS[step].node];
+  try { await navigator.clipboard.writeText(text); $("#copy").textContent = "Copied"; }
+  catch (_) { const r = document.createRange(); r.selectNodeContents($("#code")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); $("#copy").textContent = "Selected"; }
+  setTimeout(() => ($("#copy").textContent = "Copy"), 1500);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea")) return;
+  if (e.key === "ArrowRight") { stop(); go(step + 1); }
+  if (e.key === "ArrowLeft") { stop(); go(step - 1); }
+});
+render();
+</script>

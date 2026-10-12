@@ -1,0 +1,19 @@
+{
+  "application_id": "APP-1003",
+  "synthetic": true,
+  "applicant": {
+    "name": "Sunil Kadam",
+    "pan": "CDESK9012M",
+    "dob": "1982-07-21",
+    "employment_type": "self_employed",
+    "employer": "Kadam Hardware Traders"
+  },
+  "declared_monthly_income": 80000,
+  "loan": {
+    "product": "business_loan",
+    "amount": 1000000,
+    "tenure_months": 60,
+    "annual_rate_pct": 16.0,
+    "purpose": "Working capital"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "application_id": "APP-1001",
+  "synthetic": true,
+  "applicant": {
+    "name": "Priya Menon",
+    "pan": "ABCPM1234K",
+    "dob": "1990-04-14",
+    "employment_type": "salaried",
+    "employer": "Northwind Technologies Pvt Ltd"
+  },
+  "declared_monthly_income": 120000,
+  "loan": {
+    "product": "personal_loan",
+    "amount": 800000,
+    "tenure_months": 48,
+    "annual_rate_pct": 12.0,
+    "purpose": "Home renovation"
+  }
+}

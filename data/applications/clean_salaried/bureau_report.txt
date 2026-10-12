@@ -1,0 +1,16 @@
+CONSUMER CREDIT BUREAU REPORT
+(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)
+Report Date: 2026-09-02
+
+Name        : Priya Menon
+PAN         : ABCPM1234K
+Date of Birth: 1990-04-14
+
+Credit Score                  : 782
+Enquiries (last 6 months)     : 1
+Max DPD (last 12 months)      : 0
+Written-off / Settled accounts: 0
+
+Active Accounts:
+- Auto Loan | Lender: Lakeview Bank | Sanctioned: 6,00,000 | Outstanding: 2,10,000 | EMI: 12,000 | DPD: 0
+- Credit Card | Lender: Lakeview Bank | Limit: 3,00,000 | Outstanding: 26,800 | EMI: 0 | DPD: 0

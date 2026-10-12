@@ -1,0 +1,20 @@
+BLUEPEAK CONSULTING LLP
+Payslip for the month of August 2026
+(SYNTHETIC DOCUMENT - FOR DEMO USE ONLY)
+
+Employee Name : Rahul Verma
+Employee ID   : BPC-0417
+PAN           : BCDRV5678L
+Designation   : Engagement Manager
+
+Basic Salary        : 95,000
+HRA                 : 47,500
+Special Allowance   : 47,500
+Gross Earnings      : 1,90,000
+
+Provident Fund      : 11,400
+Professional Tax    : 200
+Income Tax (TDS)    : 28,400
+Total Deductions    : 40,000
+
+Net Pay             : 1,50,000
